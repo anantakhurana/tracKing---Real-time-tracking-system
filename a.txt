@@ -1,0 +1,79 @@
+I am sorry this is my server code : 
+const express = require('express');
+const app = express();
+const http = require('http');
+const server = http.createServer(app);
+const { Server } = require("socket.io");
+const io = new Server(server);
+const path = require('path');
+
+app.set("view engine", "ejs");
+app.use(express.static(path.join(__dirname, "public")));
+
+io.on("connection", function(socket){
+    socket.on("send-location", function(data){
+        io.emit("receive-location",{id:socket.id, ...data})
+    })
+    
+    socket.on("disconnect", function(){
+        io.emit("user-disconnected", socket.id);
+    })
+
+});
+
+
+app.get("/", (req, res) =>{
+    res.render("index");
+})
+
+server.listen((3000) , ()=>{
+    console.log("Sever listening at port 3000")
+})
+
+and this is my script. js code : 
+const socket = io();
+console.log("hey");
+
+if(navigator.geolocation){
+    navigator.geolocation.watchPosition(
+        (position) =>{
+        const {latitude, longitude} = position.coords;
+        socket.emit("send-location", {latitude, longitude});
+    }, 
+    (error) =>{
+        console.log(error);
+    },
+    {
+        enableHighAccuracy : true,
+        timeout : 5000,
+        maximumAge : 0
+    }
+);
+}
+
+const map = L.map("map").setView([0,0],15);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+    attribution : "tracKing -- Because Waiting is Overrated! A Project By Ananta Khurana and Janvi Saxena"
+}).addTo(map)
+
+const markers = {};
+
+socket.on("receive-location", (data)=>{
+    const{id, latitude,longitude} =data;
+    map.setView([latitude, longitude]);
+    if(markers[id]){
+        markers[id].setLatLng([latitude, longitude]);
+    }
+
+    else{
+        markers[id] = L.marker([latitude, longitude]).addTo(map);
+    }
+});
+
+socket.on("user-disconnected", (id)=>{
+    if(markers[id]){
+        map.removeLayer(markers[id]);
+        delete markers[id];
+    }
+})
